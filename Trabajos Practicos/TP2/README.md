@@ -1,0 +1,5 @@
+# Compilation
+make
+
+# Execution
+./tp

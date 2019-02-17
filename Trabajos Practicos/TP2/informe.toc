@@ -1,0 +1,14 @@
+\select@language {spanish}
+\contentsline {section}{\numberline {1}Introducci\'on}{3}
+\contentsline {section}{\numberline {2}Desarrollo}{3}
+\contentsline {subsection}{\numberline {2.1}TDA: memoria\_cache\_t}{3}
+\contentsline {subsubsection}{\numberline {2.1.1}Estructura de datos}{3}
+\contentsline {subsubsection}{\numberline {2.1.2}Metodos}{3}
+\contentsline {subsection}{\numberline {2.2}TDA: memoria\_principal\_t}{4}
+\contentsline {subsubsection}{\numberline {2.2.1}Estructura de datos}{4}
+\contentsline {subsubsection}{\numberline {2.2.2}Metodos}{4}
+\contentsline {section}{\numberline {3}Instrucciones de compilacion}{5}
+\contentsline {section}{\numberline {4}Mediciones}{5}
+\contentsline {section}{\numberline {5}Conclusiones}{7}
+\contentsline {section}{\numberline {6}Codigo fuente del programa en C:}{8}
+\contentsline {section}{\numberline {7}Enunciado}{19}

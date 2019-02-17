@@ -1,0 +1,303 @@
+\documentclass[a4paper,10pt]{article}
+
+\usepackage{graphicx}
+\usepackage[ansinew]{inputenc}
+\usepackage[spanish]{babel}
+
+\title{\textbf{Trabajo Práctico Nº 3: Data Path}}
+
+\author{
+	Sebastian Ripari, \textit{Padrón Nro. 96.453}\\
+	\texttt{sebastiandanielripari@hotmail.com}\\[2.5ex]
+	Cesar Emanuel Lencina, \textit{Padrón Nro. 96.078}\\
+	\texttt{cesar\char`_1990@live.com}\\[2.5ex]
+	Pablo Sivori, \textit{Padrón Nro. 84.026}\\
+	\texttt{sivori.daniel@gmail.com}\\[2.5ex]
+	\normalsize{2do. Cuatrimestre de 2017}\\
+	\normalsize{66.20 Organización de Computadoras  $-$ Práctica Jueves}\\
+	\normalsize{Facultad de Ingeniería, Universidad de Buenos Aires}\
+}
+
+\date{}
+
+\begin{document}
+
+\maketitle
+\thispagestyle{empty}   % quita el número en la primer página
+
+
+\begin{abstract}
+Este trabajo practico esta enfocado en dos Data Path del procesador MIPS, el pipeline y el unicycle. Se implementaran instrucciones usandos estos dos bajo el programa DrMIPS, y esto generara una comprension de la forma que se lleva a cabo la ejecucion de instrucciones. 
+\end{abstract}
+
+\null\newpage
+
+\section{Introducción}
+Usaremos el programa DrMIPS para la implementacion de las instrucciones, este programa permite visualisar el Data Path de forma grafica, y de hacer todo tipo de cambios como agregar componentes logicos, cables, etc. Esto es super beneficioso, ya que nos permite el desarrollo de cualquier logica que nos permita implementar la instruccion que necesitemos. Algunas instrucciones pueden ser implementadas usando una composicion de otras instrucciones, a esto se el llama psedoinstrucciones. Siempre buscaremos esta forma de hacer las cosas, ya que haciendo esto no necesitaremos tocar el datapath, solo el set de instrucciones. 
+
+\section{Implementacion de Instrucciones}
+
+\subsection{Instruccion SLL, usando pipeline.cpu}
+
+\subsubsection{Siglas}
+SLL viene de Shift Left Logical, es decir, corrimiento logico hacia izquierda. 
+\subsubsection{Funcion}
+Corre una cantidad, que puede ser entre 0 y 32 posiciones, los bits de nuestro dato hacia izquierda.
+\subsubsection{Uso}
+Ejemplo:\newline
+li \$t1, 9\newline
+sll \$t2, \$t1, 3\newline
+El resultado seria 9*2*2*2 = 72\newline
+
+\subsubsection{Implementacion}
+Lo primero que se hizo fue agregar la instruccion SLL al Set, es decir al archivo .set en el JSON Instructions, que es la siguiente linea:\newline
+\verb|"sll":  {|\newline
+\verb|	"type": "R", "args": ["reg", "reg", "int"],|\newline
+\verb|	"fields": {"op": 0, "rs": "#2", "rd": "#1", "rt": "#3", "shamt": "#3", "func": 0},|\newline
+\verb|	"desc": "$t1 = $t2 << Shamt"|\newline
+\verb|}|\newline
+
+Luego agregamos la operacion en la ALU en el JSON alu.operations:\newline
+\verb|"13": "sll"|\newline
+
+Ahora bien, luego de agregar esto, y poner en marcha la ejecucion de la instruccion en DrMIPS, con un simple programita como el que se mostro en la seccion \verb|Uso|, al no andar nos preguntamos porque y nos dimos cuenta de que el Shamt nunca estaba llegando a la ALU, esta recibia en su entrada \verb|In1| el contenido el registro fuente y en \verb|In2| que deberia llegar el Shamt, no llegaba, entonces nos propusimos hacer un chequeo de que si la operacion que se va a ejecutar es una de shifting, hacer que en la entrada  \verb|In2| entre el Shamt y no cualquier otra cosa. Para lograr esta disyuntiva hacia falta un Multiplexor que reciba en una entrada el Shamt y en la otra entrada lo que recibe la ALU en la entrada \verb|In2| (con un el DataPath original). Lo que esta faltando decir es como el multiplexor toma la decision de si deja pasar una entrada o la otra, bueno, para lograr esto aprobechamos que las instrucciones de shifting tienen de \verb|opcode t| todos ceros, es decir del bit 26 al 31 todos ceros, entonces desarrollamos la logica de este chequeo mediante compuertas OR, y el resultado obviamente lo pasaria a recibir el selector del Mux.
+Otra cosa que hizo falta realizar fue hacer que el Shamt tenga 32bits, esto es porque la ALU solo funciona cuando recibe entradas de este tamaño. Asi que, fue necesario agregar 27 ceros adelante de los 5 bits de Shamt, esto lo conseguimos primero generando los 27 bits en cero con un componente llamado \verb|Const| que luego mediante otro componente llamado \verb|Concatenator| los unimos al Shamt.
+
+Todos estos cambios en el Datapath fueron hechos en el archivo \verb|pipeline.cpu|. Componentes y cables agregados:\newline
+
+\textbf{Componentes:}\newline
+
+\verb|"Const0": {|\newline
+\verb|	"type": "Constant",|\newline
+\verb|	"x": 420,|\newline
+\verb|	"y": 403,|\newline
+\verb|	"out": "Out",|\newline
+\verb|	"val": 0,|\newline
+\verb|	"size": 27|\newline
+\verb|}|\newline
+
+\verb|"Concatenator44": {|\newline
+\verb|	"type": "Concatenator",|\newline
+\verb|	"x": 440,|\newline
+\verb|	"y": 410,|\newline
+\verb|	"in1": {"id": "In1", "size": 27},|\newline
+\verb|	"in2": {"id": "In2", "size": 5},|\newline
+\verb|	"out": "Out"|\newline
+\verb|}|\newline
+
+\verb|"Mux44": {|\newline
+\verb|	"type": "Multiplexer",|\newline
+\verb|	"size": 32,|\newline
+\verb|	"x": 515,|\newline
+\verb|	"y": 310,|\newline
+\verb|	in: ["0", "1"],|\newline
+\verb|	"out": "Out", "sel": "Sel"}|\newline
+\verb|}|\newline
+
+\verb|"Or1": {|\newline
+\verb|	"type": "Or",|\newline
+\verb|	"in1": "In1",|\newline
+\verb|	"in2": "In2",|\newline
+\verb|	"out": "Out",|\newline
+\verb|	"x": 340,|\newline
+\verb|	"y": 0|\newline
+\verb|}|\newline
+
+\verb|"Or2": {|\newline
+\verb|	"type": "Or",|\newline
+\verb|	"in1": "In1",|\newline
+\verb|	"in2": "In2",|\newline
+\verb|	"out": "Out",|\newline
+\verb|	"x": 440,|\newline
+\verb|	"y": 0|\newline
+\verb|}|\newline
+
+\verb|"Or3": {|\newline
+\verb|	"type": "Or",|\newline
+\verb|	"in1": "In1",|\newline
+\verb|	"in2": "In2",|\newline
+\verb|	"out": "Out",|\newline
+\verb|	"x": 540,|\newline
+\verb|	"y": 0|\newline
+\verb|}|\newline
+
+\verb|"Or4": {|\newline
+\verb|	"type": "Or",|\newline
+\verb|	"in1": "In1",|\newline
+\verb|	"in2": "In2",|\newline
+\verb|	"out": "Out",|\newline
+\verb|	"x": 640,|\newline
+\verb|	"y": 0|\newline
+\verb|}|\newline
+
+\verb|"Or5": {|\newline
+\verb|	"type": "Or",|\newline
+\verb|	"in1": "In1",|\newline
+\verb|	"in2": "In2",|\newline
+\verb|	"out": "Out",|\newline
+\verb|	"x": 740,|\newline
+\verb|	"y": 0|\newline
+\verb|}|\newline
+
+\textbf{Cables:}\newline\newline
+\noindent
+\verb|{"from": "DistInst",     "out": "31-31",       "to": "ID/EX", in: "Opcode31"}|\newline
+\verb|{"from": "DistInst",     "out": "30-30",       "to": "ID/EX", in: "Opcode30"}|\newline
+\verb|{"from": "DistInst",     "out": "29-29",       "to": "ID/EX", in: "Opcode29"}|\newline
+\verb|{"from": "DistInst",     "out": "28-28",       "to": "ID/EX", in: "Opcode28"}|\newline
+\verb|{"from": "DistInst",     "out": "27-27",       "to": "ID/EX", in: "Opcode27"}|\newline
+\verb|{"from": "DistInst",     "out": "26-26",       "to": "ID/EX", in: "Opcode26"}|\newline
+\verb|{"from": "ID/EX",        "out": "Opcode31",    "to": "Or1", in: "In1"}|\newline
+\verb|{"from": "ID/EX",        "out": "Opcode30",    "to": "Or1", in: "In2"}|\newline
+\verb|{"from": "Or1",          "out": "Out",         "to": "Or2", in: "In1"}|\newline
+\verb|{"from": "ID/EX",        "out": "Opcode29",    to": "Or2", in: "In2"}|\newline
+\verb|{"from": "Or2",          "out": "Out",         "to": "Or3", in: "In1"}|\newline
+\verb|{"from": "ID/EX",        "out": "Opcode28",    "to": "Or3", in: "In2"}|\newline
+\verb|{"from": "Or3",          "out": "Out",         "to": "Or4", in: "In1"}|\newline
+\verb|{"from": "ID/EX",        "out": "Opcode27",    "to": "Or4", in: "In2"}|\newline
+\verb|{"from": "Or4",          "out": "Out",         "to": "Or5", in: "In1"}|\newline
+\verb|{"from": "ID/EX",        "out": "Opcode26",    "to": "Or5", in: "In2"}|\newline
+\verb|{"from": "Or5",          "out": "Out",         "to": "Mux44", in: "Sel"}|\newline
+\verb|{"from": "Const0", 	   "out": "Out",         "to": "Concatenator44", "in": "In1"}|\newline
+\verb|{"from": "ID/EX", 	   "out": "Shamt",       "to": "Concatenator44", "in": "In2"}|\newline
+
+
+\subsection{Instruccion SRL, usando pipeline.cpu}
+
+\subsubsection{Definicion}
+SRL viene de Shift Right Logical, es decir, corrimiento logico hacia derecha.
+
+\subsubsection{Funcion}
+Corre una cantidad, que puede ser entre 0 y 32 posiciones, los bits de nuestro dato hacia derecha.
+
+\subsubsection{Uso}
+Ejemplo:\newline
+li \$t1, 8\newline
+srl \$t2, \$t1, 3\newline
+El resultado seria 8*(1/2)*(1/2)*(1/2) = 1\newline
+
+\subsubsection{Implementacion}
+Bueno aprobechando todo lo que se hizo en SLL, lo unico que restaba hacer es en el archivo .set, era agregar la operacion SRL en la ALU.
+
+\section{Instruccion BLT, usando pipeline.cpu}
+
+\subsubsection{Definicion}
+BLT viene de Branch Less Then.
+
+\subsubsection{Funcion}
+Se produce un salto del program counter hacia el LABEL indicado en el tercer parametro, si la condicion se cumple, que en este caso es que el registro del primer parametro sea menor al segundo registro.
+
+\subsection{Implementacion}
+Para desarrollar esta funcionalidad nos dimos cuenta que conbinando instrucciones ya implementadas, se podria lograr BLT, es decir construir una pseudoinstruccion.
+Asi que es simplemente agregar la pseudoisntruccion en el .set, en el JSON pseudo:\newline
+\verb|"blt":  {|\newline
+\verb|	"args": ["reg", "reg", "offset"],|\newline
+\verb|	"to": ["slt $1, #1, #2", "addi $1, $1, -1", "beq $1, $0, #3"],|\newline
+\verb|	"desc": "PC += ($t1 <  $t2) ? (offset * 4 + 4) : 4"|\newline
+\verb|}|\newline
+
+La logica que pensamos es lo siguiente, necesitamos que salte cuando reg1 < reg2, esto es lo mismo que pensar que es un: negacion(reg1 >= reg2), entonces usamos la instruccion slt que lo que hace es comparar justamente lo que necesitamos, osea reg1 < reg2, y si se cumple asigna un 1 en el registro \$t1, sino asigna un 0, entonces luego a este registro le restamos 1, para que tenga sentido la comparacion posterior de que si el registro \$t1 es igual a cero, que realize el salto.\newline
+Miremos con mas claridad:\newline
+\verb|Si reg1 < reg2 => $1 = 1, le resto 1 => $1 = 0|\newline 
+\verb|=> beq compara  0 con 0 entonces Salta|\newline
+\verb|Si reg1 > reg2 => $1 = 0, le resto 1 => $1 = -1|\newline
+\verb|=> beq compara -1 con 0 entonces no Salta.|\newline
+
+\subsection{Instruccion J, usando unicycle.cpu}
+
+\subsubsection{Definicion}
+J viene de Jump.
+
+\subsubsection{Funcion}
+Esta instruccion realiza un salto incondicional, moviendo el program counter hacia donde se encuentra el LABEL.
+
+\subsubsection{Implementacion}
+Cuando comenzamos a analizar que debiamos agregar o modificar para la implemantacion de la misma, notamos que ya se encontraba funcionando y por lo tanto no hicimos cambio alguno.
+
+\subsection{Instruccion JR, usando pipeline.cpu}
+
+\subsubsection{Definicion}
+J viene de Jump Register.
+
+\subsubsection{Funcion}
+Esta instruccion realiza un salto incondicional, moviendo el program counter hacia donde se encuentra la direccion que posee el registro pasado como parametro.
+
+\subsubsection{Uso}
+Ejemplo:\newline
+\verb|#Si va a la direccion saltar t2 valdra 15,|\newline
+\verb|#Caso contrario t2 valdra 10 y seria un error|\newline
+\verb|la $t1, saltar #se carga la dir en t1|\newline
+\verb|addi $t2, $zero, 20|\newline
+\verb|subi $t2, $t2, 1|\newline
+\verb|jr $t1|\newline
+\verb|sigue:|\newline
+\verb|subi $t2, $t2, 5|\newline
+\verb|subi $t2, $t2, 4|\newline
+\verb|saltar:|\newline
+\verb|subi $t2, $t2, 4|\newline
+
+\subsubsection{Implementacion}
+
+Agregamos la instruccion al set:\newline
+
+\verb|"jr": {|\newline
+\verb|"type": "R",|\newline
+\verb|"args": ["reg"],|\newline
+\verb|"fields": {"op": 2, "rs": "#1", "rt": 0, "rd": 0, "shamt": 0, "func": 8},|\newline
+\verb|"desc": "PC = $t1"|\newline
+\verb|}|\newline
+
+Aún sabiendo que el opcode es 0, optamos por poner otro valor de opcode de tal forma que no se superpusieran las líneas de la unidad de control ante otras instrucciones, sino que las líneas fueran únicamente activadas al decodificar esta instrucción. Si hubiéramos puesto la activación de una línea de salto para opcode
+0, se activaría también cuando decodifica otras instrucciones con el mismo opcode (add, sub, etc.) y no funcionaría de la manera esperada. La instrucción tiene opcode de 6 bits cuyo valor elegido es 2 (el real es 0) y toma un registro como un argumento (5 bits) que será el que contenga la dirección del salto. Los registros rt y rd son 0, al igual que shift amount y el valor de la función es 8. En cuanto a las líneas de control, se agrega una línea de 1 bit cuyo estado es 1 cuando decodifica una instrucción de opcode 2 (solo jr, en este caso, tiene dicho opcode por lo explicado antes).\newline
+\verb|"2": {"JumpD": 1}|\newline
+
+\subsection{Instruccion JALR, usando pipeline.cpu}
+
+\subsubsection{Definicion}
+JALR viene de Jump And Link Register.
+
+\subsubsection{Funcion}
+Esta instruccion realiza un salto incondicional, moviendo el program counter hacia donde se encuentra la direccion que posee el registro pasado como parametro. Y ademas guarda en un registro la direccion de memoria siguiente a la actual. Esto sirve para retornar facilmente hacia donde se encuentra el programa llamante.
+
+\subsubsection{Uso}
+Ejemplo:\newline
+\verb|#Si va a la direccion saltar t2 valdra 15,|\newline
+\verb|#Caso contrario t2 valdra 10 y seria un error|\newline
+\verb|la $t1, saltar #se carga la dir en t1|\newline
+\verb|addi $t2, $zero, 20|\newline
+\verb|subi $t2, $t2, 1|\newline
+\verb|jalr $t1|\newline
+\verb|sigue:|\newline
+\verb|subi $t2, $t2, 5|\newline
+\verb|subi $t2, $t2, 4|\newline
+\verb|saltar:|\newline
+\verb|subi $t2, $t2, 4|\newline
+
+\subsubsection{Implementacion}
+
+Agregamos la instruccion al set:
+\verb|"jalr": {|\newline
+\verb|"type": "R",|\newline
+\verb|"args": ["reg"],|\newline
+\verb|"fields": {"op": 2, "rs": "#1", "rt": 0, "rd": 31, "shamt": 0, "func": 9},|\newline
+\verb|"desc": "$ra = PC+4; nPC = $t1"}|\newline
+
+Ahora bien, la instrucción tiene opcode de 6 bits cuyo valor elegido es 2, para poder tener exclusividad en las líneas de control necesarias. Como argumento, al igual que jr, toma el valor del registro (en 5 bits) que será el que contenga la dirección del salto. Se diferencia de jr, porque esta instrucción debe almacenar la dirección de retorno (PC+4, la siguiente a la de la instrucción jalr) en el registro 31 (\$ra). Existen dos alternativas para la sintaxis de la instruccion en la arquitectura MIPS32. Una es no tomar como argumento el registro para almacenar PC+4 y, en cambio, se asume implicito el registro \$ra. La otra es donde sí se
+toma un segundo argumento como registro destino para escribir la dirección de retorno. Como se puede ver en esta versión, se especifica el valor implícito
+31 para el registro rd. Finalmente shift amount es 0 y el valor de la función es 9. En cuanto a las líneas de control, por un lado se utiliza JumpD que se activa para indicar que la instrucción es un salto y por otro, se utilizan lineas para la escritura de la dirección de retorno: RegWrite que se activará ante una escritura y RegDst que se activará seleccionando como destino el registro Rd especificado en la instrucción.\newline
+
+\verb|"2": {"JumpD": 1, "RegDst": 1, "RegWrite": 1}|\newline
+
+\section{Conclusiones}
+La forma de llevar a cabo la ejecucion de una instruccion, separandola en tareas individuales, como es en el caso de pipeline, logra un mejor aprobechamiento del procesador frente al unicycle, debido a que permite la ejecucion de mas de una instrucion en simulteaneo. Y como consecuencia mayor desempeño del mismo.
+
+\begin{thebibliography}{99}
+
+\bibitem{diap_de_teoricas} Clase Teorica 3 del profesor Hamkalo 'Principios de Conjuntos de Instrucciones' 
+
+\bibitem{docu_dr_mips} Documentacion del programa DrMIPS\newline
+ https://cdn.rawgit.com/brunonova/drmips/v2.0.1/doc/manuals/en/index.html
+
+\end{thebibliography}
+
+\end{document}
